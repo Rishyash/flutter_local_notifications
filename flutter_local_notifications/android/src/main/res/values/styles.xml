@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!--
+      Theme used by FullScreenNotificationActivity.
+      Extends NoActionBar so the native action bar never appears over Flutter's UI.
+      AppCompat is always available as a transitive dependency of Flutter apps.
+    -->
+    <style name="FullScreenNotificationTheme" parent="Theme.AppCompat.NoActionBar" />
+</resources>

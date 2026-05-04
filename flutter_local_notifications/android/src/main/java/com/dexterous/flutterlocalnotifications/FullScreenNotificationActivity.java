@@ -1,33 +1,132 @@
 package com.dexterous.flutterlocalnotifications;
 
-import android.app.Activity;
+import android.app.KeyguardManager;
+import android.content.Context;
 import android.content.Intent;
-import android.content.pm.PackageManager;
 import android.os.Build;
 import android.os.Bundle;
 import android.view.WindowManager;
 
+import androidx.annotation.NonNull;
+import androidx.annotation.Nullable;
+
+import io.flutter.embedding.android.FlutterActivity;
+import io.flutter.embedding.engine.FlutterEngine;
+import io.flutter.plugin.common.MethodChannel;
+
 /**
- * Transparent activity used as the target for full-screen notification intents.
+ * A full-screen notification activity that renders real Flutter UI over the lock screen.
  *
- * <p>Declared in the library manifest with {@code showWhenLocked} and {@code turnScreenOn}, so it
- * can appear over the lock screen without touching the host app's main activity. It immediately
- * forwards the notification tap to the app's main launch activity and finishes itself, keeping the
- * normal {@code onNotificationResponse} callback flow intact.
+ * <p>Set {@code fullScreenIntent: true} in {@code AndroidNotificationDetails} to use it.
+ * The activity always opens at the app's initial route ("/") directly on the lock screen —
+ * no unlock required to see the UI.
+ *
+ * <p>Use {@code AndroidFullScreenNotificationController} (Dart) to:
+ * <ul>
+ *   <li>Dismiss the activity.
+ *   <li>Open the main app (prompts unlock on secure lock screens).
+ * </ul>
  */
-public class FullScreenNotificationActivity extends Activity {
+public class FullScreenNotificationActivity extends FlutterActivity {
+
+  /** Method channel name — must match the constant in AndroidFullScreenNotificationController.dart */
+  private static final String CHANNEL =
+      "dexterous.com/flutter/local_notifications/full_screen";
+
+  // -------------------------------------------------------------------------
+  // Lifecycle
+  // -------------------------------------------------------------------------
 
   @Override
-  protected void onCreate(Bundle savedInstanceState) {
-    super.onCreate(savedInstanceState);
+  protected void onCreate(@Nullable Bundle savedInstanceState) {
+    // Window flags must be applied before super.onCreate() so Flutter's
+    // first frame is already allowed to render over the lock screen.
     enableOverLockScreen();
-    forwardToMainActivity();
-    finish();
+    super.onCreate(savedInstanceState);
   }
 
+  // -------------------------------------------------------------------------
+  // FlutterActivity overrides
+  // -------------------------------------------------------------------------
+
+  /**
+   * Registers the full-screen method channel alongside the app's own plugins.
+   * {@code super.configureFlutterEngine()} handles GeneratedPluginRegistrant so
+   * all other plugins (including FlutterLocalNotificationsPlugin) are available too.
+   */
+  @Override
+  public void configureFlutterEngine(@NonNull FlutterEngine flutterEngine) {
+    super.configureFlutterEngine(flutterEngine);
+
+    new MethodChannel(flutterEngine.getDartExecutor().getBinaryMessenger(), CHANNEL)
+        .setMethodCallHandler(
+            (call, result) -> {
+              switch (call.method) {
+                case "dismiss":
+                  finish();
+                  result.success(null);
+                  break;
+                case "openMainApp":
+                  handleOpenMainApp(result);
+                  break;
+                default:
+                  result.notImplemented();
+              }
+            });
+  }
+
+  // -------------------------------------------------------------------------
+  // Method channel handlers
+  // -------------------------------------------------------------------------
+
+  /**
+   * Opens the main app with the notification response.
+   *
+   * <p>On a secure lock screen the system unlock prompt is shown first. The main
+   * app only opens after a successful unlock, keeping the lock screen secure. If
+   * the user cancels the prompt this activity stays visible so they can try again.
+   */
+  private void handleOpenMainApp(MethodChannel.Result result) {
+    KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+
+    boolean isSecureLocked =
+        km != null && km.isKeyguardLocked() && km.isKeyguardSecure();
+
+    if (isSecureLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+      km.requestDismissKeyguard(
+          this,
+          new KeyguardManager.KeyguardDismissCallback() {
+            @Override
+            public void onDismissSucceeded() {
+              launchMainActivity();
+              finish();
+            }
+
+            @Override
+            public void onDismissCancelled() {
+              // User cancelled — stay on the full-screen activity.
+            }
+
+            @Override
+            public void onDismissError() {
+              finish();
+            }
+          });
+    } else {
+      launchMainActivity();
+      finish();
+    }
+
+    result.success(null);
+  }
+
+  // -------------------------------------------------------------------------
+  // Private helpers
+  // -------------------------------------------------------------------------
+
+  /** Applies the flags that allow this activity to render over the lock screen. */
   private void enableOverLockScreen() {
     if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O_MR1) {
-      // API 27+: use the dedicated Activity methods (FLAG_* equivalents are deprecated there)
       setShowWhenLocked(true);
       setTurnScreenOn(true);
     } else {
@@ -38,17 +137,16 @@ public class FullScreenNotificationActivity extends Activity {
     }
   }
 
-  private void forwardToMainActivity() {
+  /**
+   * Starts the app's main launch activity and carries the notification extras so
+   * the plugin's existing {@code onNewIntent} / {@code onAttachedToActivity} handlers
+   * fire {@code onNotificationResponse} as usual.
+   */
+  private void launchMainActivity() {
     Intent source = getIntent();
+    Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
+    if (launchIntent == null) return;
 
-    PackageManager pm = getPackageManager();
-    Intent launchIntent = pm.getLaunchIntentForPackage(getPackageName());
-    if (launchIntent == null) {
-      return;
-    }
-
-    // Carry the notification action and data so the plugin's existing
-    // onNewIntent / onAttachedToActivity handlers pick it up unchanged.
     launchIntent.setAction(FlutterLocalNotificationsPlugin.SELECT_NOTIFICATION);
     launchIntent.putExtra(
         FlutterLocalNotificationsPlugin.NOTIFICATION_ID,
@@ -57,9 +155,8 @@ public class FullScreenNotificationActivity extends Activity {
         FlutterLocalNotificationsPlugin.PAYLOAD,
         source.getStringExtra(FlutterLocalNotificationsPlugin.PAYLOAD));
 
-    // FLAG_ACTIVITY_SINGLE_TOP reuses the existing Flutter activity and triggers
-    // onNewIntent, which the plugin already listens to. getLaunchIntentForPackage
-    // already adds FLAG_ACTIVITY_NEW_TASK so the app can start from the lock screen.
+    // FLAG_ACTIVITY_SINGLE_TOP reuses a running Flutter activity (triggers onNewIntent).
+    // getLaunchIntentForPackage already adds FLAG_ACTIVITY_NEW_TASK.
     launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
     startActivity(launchIntent);

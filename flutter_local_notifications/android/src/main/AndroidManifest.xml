@@ -15,9 +15,11 @@
             android:exported="false"
             android:showWhenLocked="true"
             android:turnScreenOn="true"
-            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:theme="@style/FullScreenNotificationTheme"
+            android:hardwareAccelerated="true"
+            android:configChanges="orientation|keyboardHidden|keyboard|screenSize|locale|layoutDirection|fontScale|screenLayout|density|uiMode"
+            android:windowSoftInputMode="adjustResize"
             android:taskAffinity=""
-            android:excludeFromRecents="true"
-            android:noHistory="true" />
+            android:excludeFromRecents="true" />
     </application>
 </manifest>
