@@ -12,6 +12,7 @@ import 'platform_specifics/android/enums.dart';
 import 'platform_specifics/android/icon.dart';
 import 'platform_specifics/android/initialization_settings.dart';
 import 'platform_specifics/android/message.dart';
+import 'platform_specifics/android/full_screen_notification_launch_details.dart';
 import 'platform_specifics/android/method_channel_mappers.dart';
 import 'platform_specifics/android/notification_channel.dart';
 import 'platform_specifics/android/notification_channel_group.dart';
@@ -192,6 +193,42 @@ class AndroidFlutterLocalNotificationsPlugin
   /// for official Android documentation.
   Future<bool?> requestFullScreenIntentPermission() async =>
       _channel.invokeMethod<bool>('requestFullScreenIntentPermission');
+
+  /// Returns launch details when the app was opened via
+  /// [AndroidFullScreenNotificationController.openMainApp].
+  ///
+  /// Returns `null` when the app was NOT opened from a full-screen notification.
+  /// [getNotificationAppLaunchDetails] always returns `null` for this launch
+  /// so the two flows remain independent.
+  Future<FullScreenNotificationLaunchDetails?> getFullScreenNotificationLaunchDetails() async {
+    final Map<Object?, Object?>? raw = await _channel
+        .invokeMapMethod<Object?, Object?>('getFullScreenNotificationLaunchDetails');
+    if (raw == null || raw['launchedFromFullScreen'] != true) return null;
+
+    final responseRaw = raw['notificationResponse'] as Map<Object?, Object?>?;
+    NotificationResponse? notificationResponse;
+    if (responseRaw != null) {
+      notificationResponse = NotificationResponse(
+        id: responseRaw['notificationId'] as int?,
+        payload: responseRaw['payload'] as String?,
+        notificationResponseType: NotificationResponseType.selectedNotification,
+      );
+    }
+
+    final actionDataRaw = raw['fullScreenActionData'];
+    Map<String, dynamic>? actionData;
+    if (actionDataRaw is Map) {
+      actionData = actionDataRaw.map(
+        (k, v) => MapEntry(k.toString(), v),
+      );
+    }
+
+    return FullScreenNotificationLaunchDetails(
+      notificationResponse: notificationResponse,
+      actionType: raw['fullScreenActionType'] as String?,
+      actionData: actionData,
+    );
+  }
 
   /// Requests the permission for sending notifications. Returns whether the
   /// permission was granted.

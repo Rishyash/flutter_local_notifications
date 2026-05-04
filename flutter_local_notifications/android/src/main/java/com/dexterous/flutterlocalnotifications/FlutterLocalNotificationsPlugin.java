@@ -88,6 +88,8 @@ import java.time.LocalDateTime;
 import java.time.ZoneId;
 import java.time.ZonedDateTime;
 import java.time.format.DateTimeFormatter;
+import org.json.JSONObject;
+
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Calendar;
@@ -136,8 +138,13 @@ public class FlutterLocalNotificationsPlugin
   private static final String DRAWABLE = "drawable";
   private static final String DEFAULT_ICON = "defaultIcon";
   static final String SELECT_NOTIFICATION = "SELECT_NOTIFICATION";
+  static final String SELECT_NOTIFICATION_FULL_SCREEN = "SELECT_NOTIFICATION_FROM_FULL_SCREEN";
   private static final String SELECT_FOREGROUND_NOTIFICATION_ACTION =
       "SELECT_FOREGROUND_NOTIFICATION";
+  private static final String GET_FULL_SCREEN_NOTIFICATION_LAUNCH_DETAILS_METHOD =
+      "getFullScreenNotificationLaunchDetails";
+  static final String FULL_SCREEN_ACTION_TYPE = "fullScreenActionType";
+  static final String FULL_SCREEN_ACTION_DATA = "fullScreenActionData";
   private static final String SCHEDULED_NOTIFICATIONS = "scheduled_notifications";
   private static final String INITIALIZE_METHOD = "initialize";
   private static final String GET_CALLBACK_HANDLE_METHOD = "getCallbackHandle";
@@ -1627,6 +1634,9 @@ public class FlutterLocalNotificationsPlugin
       case GET_NOTIFICATION_APP_LAUNCH_DETAILS_METHOD:
         getNotificationAppLaunchDetails(result);
         break;
+      case GET_FULL_SCREEN_NOTIFICATION_LAUNCH_DETAILS_METHOD:
+        getFullScreenNotificationLaunchDetails(result);
+        break;
       case SHOW_METHOD:
         show(call, result);
         break;
@@ -1866,6 +1876,52 @@ public class FlutterLocalNotificationsPlugin
 
     notificationAppLaunchDetails.put(NOTIFICATION_LAUNCHED_APP, notificationLaunchedApp);
     result.success(notificationAppLaunchDetails);
+  }
+
+  /**
+   * Returns launch details when the app was opened from a full-screen notification via
+   * {@code openMainApp()}. Includes the notification response plus the {@code actionType}
+   * and {@code actionData} map passed by the caller.
+   *
+   * Unlike {@link #getNotificationAppLaunchDetails}, this returns data only for the
+   * {@link #SELECT_NOTIFICATION_FULL_SCREEN} action, keeping the two flows separate.
+   */
+  private void getFullScreenNotificationLaunchDetails(Result result) {
+    Map<String, Object> details = new HashMap<>();
+    boolean launchedFromFullScreen = false;
+
+    if (mainActivity != null) {
+      Intent launchIntent = mainActivity.getIntent();
+      launchedFromFullScreen =
+          launchIntent != null
+              && SELECT_NOTIFICATION_FULL_SCREEN.equals(launchIntent.getAction())
+              && !launchedActivityFromHistory(launchIntent);
+
+      if (launchedFromFullScreen) {
+        details.put("notificationResponse", extractNotificationResponseMap(launchIntent));
+        details.put(FULL_SCREEN_ACTION_TYPE, launchIntent.getStringExtra(FULL_SCREEN_ACTION_TYPE));
+
+        // actionData was serialised as a JSON string — deserialise back to a Map
+        String actionDataJson = launchIntent.getStringExtra(FULL_SCREEN_ACTION_DATA);
+        if (actionDataJson != null) {
+          try {
+            JSONObject json = new JSONObject(actionDataJson);
+            Map<String, Object> actionDataMap = new HashMap<>();
+            Iterator<String> keys = json.keys();
+            while (keys.hasNext()) {
+              String key = keys.next();
+              actionDataMap.put(key, json.get(key));
+            }
+            details.put(FULL_SCREEN_ACTION_DATA, actionDataMap);
+          } catch (Exception e) {
+            details.put(FULL_SCREEN_ACTION_DATA, null);
+          }
+        }
+      }
+    }
+
+    details.put("launchedFromFullScreen", launchedFromFullScreen);
+    result.success(details);
   }
 
   private void initialize(MethodCall call, Result result) {
@@ -2188,6 +2244,14 @@ public class FlutterLocalNotificationsPlugin
 
   @Override
   public boolean onNewIntent(Intent intent) {
+    // Full-screen action: store intent so getFullScreenNotificationLaunchDetails() can read it.
+    if (SELECT_NOTIFICATION_FULL_SCREEN.equals(intent.getAction())) {
+      if (mainActivity != null) {
+        mainActivity.setIntent(intent);
+      }
+      return true;
+    }
+
     boolean res = sendNotificationPayloadMessage(intent);
     if (res && mainActivity != null) {
       mainActivity.setIntent(intent);

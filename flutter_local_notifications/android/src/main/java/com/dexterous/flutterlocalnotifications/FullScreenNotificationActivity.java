@@ -10,6 +10,11 @@ import android.view.WindowManager;
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 
+import org.json.JSONObject;
+
+import java.util.HashMap;
+import java.util.Map;
+
 import io.flutter.embedding.android.FlutterActivity;
 import io.flutter.embedding.engine.FlutterEngine;
 import io.flutter.plugin.common.MethodChannel;
@@ -67,7 +72,7 @@ public class FullScreenNotificationActivity extends FlutterActivity {
                   result.success(null);
                   break;
                 case "openMainApp":
-                  handleOpenMainApp(result);
+                  handleOpenMainApp(call.arguments(), result);
                   break;
                 default:
                   result.notImplemented();
@@ -80,17 +85,20 @@ public class FullScreenNotificationActivity extends FlutterActivity {
   // -------------------------------------------------------------------------
 
   /**
-   * Opens the main app with the notification response.
+   * Opens the main app carrying {@code actionType} and {@code actionData} so the main app
+   * can retrieve them via {@code getFullScreenNotificationLaunchDetails()}.
    *
    * <p>On a secure lock screen the system unlock prompt is shown first. The main
-   * app only opens after a successful unlock, keeping the lock screen secure. If
-   * the user cancels the prompt this activity stays visible so they can try again.
+   * app only opens after a successful unlock. If the user cancels, the activity stays visible.
+   *
+   * @param args map from Dart: {@code {"actionType": "...", "actionData": {...}}}
    */
-  private void handleOpenMainApp(MethodChannel.Result result) {
-    KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+  @SuppressWarnings("unchecked")
+  private void handleOpenMainApp(Object args, MethodChannel.Result result) {
+    Map<String, Object> argsMap = (args instanceof Map) ? (Map<String, Object>) args : new HashMap<>();
 
-    boolean isSecureLocked =
-        km != null && km.isKeyguardLocked() && km.isKeyguardSecure();
+    KeyguardManager km = (KeyguardManager) getSystemService(Context.KEYGUARD_SERVICE);
+    boolean isSecureLocked = km != null && km.isKeyguardLocked() && km.isKeyguardSecure();
 
     if (isSecureLocked && Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
       km.requestDismissKeyguard(
@@ -98,7 +106,7 @@ public class FullScreenNotificationActivity extends FlutterActivity {
           new KeyguardManager.KeyguardDismissCallback() {
             @Override
             public void onDismissSucceeded() {
-              launchMainActivity();
+              launchMainActivity(argsMap);
               finish();
             }
 
@@ -113,7 +121,7 @@ public class FullScreenNotificationActivity extends FlutterActivity {
             }
           });
     } else {
-      launchMainActivity();
+      launchMainActivity(argsMap);
       finish();
     }
 
@@ -142,12 +150,19 @@ public class FullScreenNotificationActivity extends FlutterActivity {
    * the plugin's existing {@code onNewIntent} / {@code onAttachedToActivity} handlers
    * fire {@code onNotificationResponse} as usual.
    */
-  private void launchMainActivity() {
+  /**
+   * Starts the main app with a {@link FlutterLocalNotificationsPlugin#SELECT_NOTIFICATION_FULL_SCREEN}
+   * action so {@code getNotificationAppLaunchDetails()} returns null while
+   * {@code getFullScreenNotificationLaunchDetails()} returns the full data.
+   */
+  @SuppressWarnings("unchecked")
+  private void launchMainActivity(Map<String, Object> argsMap) {
     Intent source = getIntent();
     Intent launchIntent = getPackageManager().getLaunchIntentForPackage(getPackageName());
     if (launchIntent == null) return;
 
-    launchIntent.setAction(FlutterLocalNotificationsPlugin.SELECT_NOTIFICATION);
+    // Use a distinct action so the two launch-detail APIs don't overlap.
+    launchIntent.setAction(FlutterLocalNotificationsPlugin.SELECT_NOTIFICATION_FULL_SCREEN);
     launchIntent.putExtra(
         FlutterLocalNotificationsPlugin.NOTIFICATION_ID,
         source.getIntExtra(FlutterLocalNotificationsPlugin.NOTIFICATION_ID, -1));
@@ -155,8 +170,22 @@ public class FullScreenNotificationActivity extends FlutterActivity {
         FlutterLocalNotificationsPlugin.PAYLOAD,
         source.getStringExtra(FlutterLocalNotificationsPlugin.PAYLOAD));
 
+    // Carry actionType as a plain string.
+    launchIntent.putExtra(
+        FlutterLocalNotificationsPlugin.FULL_SCREEN_ACTION_TYPE,
+        (String) argsMap.get("actionType"));
+
+    // Serialise actionData map to JSON so it survives the Intent boundary.
+    Object actionData = argsMap.get("actionData");
+    if (actionData instanceof Map) {
+      try {
+        launchIntent.putExtra(
+            FlutterLocalNotificationsPlugin.FULL_SCREEN_ACTION_DATA,
+            new JSONObject((Map<String, Object>) actionData).toString());
+      } catch (Exception ignored) {}
+    }
+
     // FLAG_ACTIVITY_SINGLE_TOP reuses a running Flutter activity (triggers onNewIntent).
-    // getLaunchIntentForPackage already adds FLAG_ACTIVITY_NEW_TASK.
     launchIntent.addFlags(Intent.FLAG_ACTIVITY_SINGLE_TOP);
 
     startActivity(launchIntent);

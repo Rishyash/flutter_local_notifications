@@ -42,14 +42,32 @@ class AndroidFullScreenNotificationController {
     'dexterous.com/flutter/local_notifications/full_screen',
   );
 
-  /// Closes the full-screen activity without opening the main app.
+  /// Closes the full-screen activity.
   static Future<void> dismiss() => _channel.invokeMethod<void>('dismiss');
 
-  /// Opens the main app and fires [onDidReceiveNotificationResponse] as usual.
+  /// Opens the main app, carrying [actionType] and [actionData] so the main
+  /// app can retrieve them via
+  /// [AndroidFlutterLocalNotificationsPlugin.getFullScreenNotificationLaunchDetails].
   ///
-  /// On a secure lock screen (PIN / pattern / password), the system unlock
-  /// prompt is shown first. The app opens only after a successful unlock.
-  /// If the user cancels, the full-screen activity stays visible so they can
-  /// try again or dismiss it.
-  static Future<void> openMainApp() => _channel.invokeMethod<void>('openMainApp');
+  /// On a secure lock screen the system unlock prompt is shown first — the app
+  /// opens only after a successful unlock. If the user cancels, the activity
+  /// stays visible.
+  ///
+  /// [getNotificationAppLaunchDetails] returns `null` for this launch so the
+  /// two flows don't conflict.
+  ///
+  /// ```dart
+  /// await AndroidFullScreenNotificationController.openMainApp(
+  ///   actionType: 'FALSE_THEFT_ALERT_BOTTOM',
+  ///   actionData: {'vehicleNum': 'HR55AD8556', 'vehicleId': '123'},
+  /// );
+  /// ```
+  static Future<void> openMainApp({
+    required String actionType,
+    Map<String, dynamic> actionData = const {},
+  }) =>
+      _channel.invokeMethod<void>('openMainApp', {
+        'actionType': actionType,
+        'actionData': actionData,
+      });
 }

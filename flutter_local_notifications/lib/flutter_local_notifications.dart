@@ -12,6 +12,7 @@ export 'src/platform_flutter_local_notifications.dart'
 export 'src/platform_specifics/android/bitmap.dart';
 export 'src/platform_specifics/android/custom_notification_view.dart';
 export 'src/platform_specifics/android/full_screen_notification_controller.dart';
+export 'src/platform_specifics/android/full_screen_notification_launch_details.dart';
 export 'src/platform_specifics/android/enums.dart'
     hide AndroidBitmapSource, AndroidIconSource, AndroidNotificationSoundSource;
 export 'src/platform_specifics/android/icon.dart';
