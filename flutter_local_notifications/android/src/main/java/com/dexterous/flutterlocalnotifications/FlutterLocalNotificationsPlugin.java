@@ -135,7 +135,7 @@ public class FlutterLocalNotificationsPlugin
   private static final String CALLBACK_HANDLE = "callback_handle";
   private static final String DRAWABLE = "drawable";
   private static final String DEFAULT_ICON = "defaultIcon";
-  private static final String SELECT_NOTIFICATION = "SELECT_NOTIFICATION";
+  static final String SELECT_NOTIFICATION = "SELECT_NOTIFICATION";
   private static final String SELECT_FOREGROUND_NOTIFICATION_ACTION =
       "SELECT_FOREGROUND_NOTIFICATION";
   private static final String SCHEDULED_NOTIFICATIONS = "scheduled_notifications";
@@ -447,7 +447,18 @@ public class FlutterLocalNotificationsPlugin
     }
 
     if (BooleanUtils.getValue(notificationDetails.fullScreenIntent)) {
-      builder.setFullScreenIntent(pendingIntent, true);
+      Intent fullScreenIntentData = new Intent(context, FullScreenNotificationActivity.class);
+      fullScreenIntentData.setAction(SELECT_NOTIFICATION);
+      fullScreenIntentData.putExtra(NOTIFICATION_ID, notificationDetails.id);
+      fullScreenIntentData.putExtra(PAYLOAD, notificationDetails.payload);
+      int fullScreenFlags = PendingIntent.FLAG_UPDATE_CURRENT;
+      if (VERSION.SDK_INT >= VERSION_CODES.M) {
+        fullScreenFlags |= PendingIntent.FLAG_IMMUTABLE;
+      }
+      PendingIntent fullScreenPendingIntent =
+          PendingIntent.getActivity(
+              context, notificationDetails.id, fullScreenIntentData, fullScreenFlags);
+      builder.setFullScreenIntent(fullScreenPendingIntent, true);
     }
 
     if (!StringUtils.isNullOrEmpty(notificationDetails.shortcutId)) {

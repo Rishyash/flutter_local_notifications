@@ -2,4 +2,22 @@
   package="com.dexterous.flutterlocalnotifications">
     <uses-permission android:name="android.permission.VIBRATE" />
     <uses-permission android:name="android.permission.POST_NOTIFICATIONS"/>
+
+    <application>
+        <!--
+          Dedicated activity used as the target for fullScreenIntent notifications.
+          It shows over the lock screen and wakes the display without touching the
+          host app's main activity.  Consumers do not need to add anything to their
+          own AndroidManifest.xml for this to work.
+        -->
+        <activity
+            android:name=".FullScreenNotificationActivity"
+            android:exported="false"
+            android:showWhenLocked="true"
+            android:turnScreenOn="true"
+            android:theme="@android:style/Theme.Translucent.NoTitleBar"
+            android:taskAffinity=""
+            android:excludeFromRecents="true"
+            android:noHistory="true" />
+    </application>
 </manifest>
