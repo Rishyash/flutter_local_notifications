@@ -979,28 +979,52 @@ public class FlutterLocalNotificationsPlugin
           // Set click action if provided
           if (mapping.actionId != null) {
             try {
-              Intent intent = getLaunchIntent(context);
-              intent.setAction(SELECT_NOTIFICATION);
-              intent.putExtra(NOTIFICATION_ID, notificationDetails.id);
-              intent.putExtra(ACTION_ID, mapping.actionId);
-              intent.putExtra(PAYLOAD, notificationDetails.payload);
-              intent.putExtra(CANCEL_NOTIFICATION, true);
-              
-              if (notificationDetails.tag != null) {
-                intent.putExtra(NOTIFICATION_TAG, notificationDetails.tag);
-              }
-              
               int flags = PendingIntent.FLAG_UPDATE_CURRENT;
               if (VERSION.SDK_INT >= VERSION_CODES.S) {
                 flags |= PendingIntent.FLAG_IMMUTABLE;
               }
-              
-              PendingIntent pendingIntent = PendingIntent.getActivity(
-                  context,
-                  notificationDetails.id.hashCode() + mapping.actionId.hashCode(),
-                  intent,
-                  flags);
-              
+
+              final PendingIntent pendingIntent;
+
+              if ("dismiss_notification".equals(mapping.actionId)) {
+                // Dismiss-only: send a broadcast to cancel the notification without
+                // launching the app.
+                Intent broadcastIntent = new Intent(ActionBroadcastReceiver.ACTION_TAPPED);
+                broadcastIntent.setClass(context, ActionBroadcastReceiver.class);
+                broadcastIntent.putExtra(NOTIFICATION_ID, notificationDetails.id);
+                broadcastIntent.putExtra(ACTION_ID, mapping.actionId);
+                broadcastIntent.putExtra(PAYLOAD, notificationDetails.payload);
+                broadcastIntent.putExtra(CANCEL_NOTIFICATION, true);
+
+                if (notificationDetails.tag != null) {
+                  broadcastIntent.putExtra(NOTIFICATION_TAG, notificationDetails.tag);
+                }
+
+                pendingIntent = PendingIntent.getBroadcast(
+                    context,
+                    notificationDetails.id.hashCode() + mapping.actionId.hashCode(),
+                    broadcastIntent,
+                    flags);
+              } else {
+                // Normal action: launch the app and report the tap.
+                Intent intent = getLaunchIntent(context);
+                intent.setAction(SELECT_NOTIFICATION);
+                intent.putExtra(NOTIFICATION_ID, notificationDetails.id);
+                intent.putExtra(ACTION_ID, mapping.actionId);
+                intent.putExtra(PAYLOAD, notificationDetails.payload);
+                intent.putExtra(CANCEL_NOTIFICATION, true);
+
+                if (notificationDetails.tag != null) {
+                  intent.putExtra(NOTIFICATION_TAG, notificationDetails.tag);
+                }
+
+                pendingIntent = PendingIntent.getActivity(
+                    context,
+                    notificationDetails.id.hashCode() + mapping.actionId.hashCode(),
+                    intent,
+                    flags);
+              }
+
               remoteViews.setOnClickPendingIntent(viewResId, pendingIntent);
             } catch (Exception e) {
               // Silently continue if click action setting fails
