@@ -19,6 +19,8 @@ import android.content.pm.PackageManager;
 import android.content.res.AssetFileDescriptor;
 import android.graphics.Bitmap;
 import android.graphics.BitmapFactory;
+import android.graphics.Color;
+import android.graphics.Typeface;
 import android.media.AudioAttributes;
 import android.media.RingtoneManager;
 import android.net.Uri;
@@ -34,6 +36,8 @@ import android.text.SpannableString;
 import android.text.Spanned;
 import android.text.TextUtils;
 import android.text.style.ForegroundColorSpan;
+import android.text.style.StyleSpan;
+import android.view.View;
 import android.util.Log;
 import android.widget.RemoteViews;
 
@@ -967,15 +971,65 @@ public class FlutterLocalNotificationsPlugin
             continue;
           }
           
-          // Set text if provided
+          // Set text if provided (optionally bold)
           if (mapping.text != null) {
             try {
-              remoteViews.setTextViewText(viewResId, mapping.text);
+              if (mapping.bold != null && mapping.bold) {
+                SpannableString boldText = new SpannableString(mapping.text);
+                boldText.setSpan(
+                    new StyleSpan(Typeface.BOLD),
+                    0,
+                    boldText.length(),
+                    Spanned.SPAN_INCLUSIVE_INCLUSIVE);
+                remoteViews.setTextViewText(viewResId, boldText);
+              } else {
+                remoteViews.setTextViewText(viewResId, mapping.text);
+              }
             } catch (Exception e) {
               // Silently continue if text setting fails
             }
           }
-          
+
+          // Toggle visibility if provided
+          if (mapping.visible != null) {
+            try {
+              remoteViews.setViewVisibility(
+                  viewResId, mapping.visible ? View.VISIBLE : View.GONE);
+            } catch (Exception e) {
+              // Silently continue if visibility setting fails
+            }
+          }
+
+          // Apply background drawable if provided
+          if (mapping.backgroundResource != null) {
+            try {
+              int bgId = getDrawableResourceId(context, mapping.backgroundResource);
+              if (bgId != 0) {
+                remoteViews.setInt(viewResId, "setBackgroundResource", bgId);
+              }
+            } catch (Exception e) {
+              // Silently continue if background setting fails
+            }
+          }
+
+          // Apply text color if provided
+          if (mapping.textColor != null) {
+            try {
+              remoteViews.setTextColor(viewResId, Color.parseColor(mapping.textColor));
+            } catch (Exception e) {
+              // Silently continue if text color setting fails
+            }
+          }
+
+          // Apply max lines if provided
+          if (mapping.maxLines != null) {
+            try {
+              remoteViews.setInt(viewResId, "setMaxLines", mapping.maxLines);
+            } catch (Exception e) {
+              // Silently continue if max lines setting fails
+            }
+          }
+
           // Set click action if provided
           if (mapping.actionId != null) {
             try {

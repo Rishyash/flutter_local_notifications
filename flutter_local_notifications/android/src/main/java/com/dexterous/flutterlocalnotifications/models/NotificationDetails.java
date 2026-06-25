@@ -85,6 +85,11 @@ public class NotificationDetails implements Serializable {
   private static final String VIEW_MAPPINGS = "viewMappings";
   private static final String VIEW_ID = "viewId";
   private static final String ACTION_ID = "actionId";
+  private static final String VISIBLE = "visible";
+  private static final String BACKGROUND_RESOURCE = "backgroundResource";
+  private static final String TEXT_COLOR = "textColor";
+  private static final String MAX_LINES = "maxLines";
+  private static final String BOLD = "bold";
   private static final String BIG_PICTURE = "bigPicture";
   private static final String BIG_PICTURE_BITMAP_SOURCE = "bigPictureBitmapSource";
   private static final String HIDE_EXPANDED_LARGE_ICON = "hideExpandedLargeIcon";
@@ -411,9 +416,16 @@ public class NotificationDetails implements Serializable {
           String viewId = (String) mappingMap.get(VIEW_ID);
           String text = (String) mappingMap.get(TEXT);
           String actionId = (String) mappingMap.get(ACTION_ID);
-          
+          Boolean visible = (Boolean) mappingMap.get(VISIBLE);
+          String backgroundResource = (String) mappingMap.get(BACKGROUND_RESOURCE);
+          String textColor = (String) mappingMap.get(TEXT_COLOR);
+          Object maxLinesValue = mappingMap.get(MAX_LINES);
+          Integer maxLines = maxLinesValue instanceof Number ? ((Number) maxLinesValue).intValue() : null;
+          Boolean bold = (Boolean) mappingMap.get(BOLD);
+
           if (viewId != null) {
-            mappings.add(new CustomViewMapping(viewId, text, actionId));
+            mappings.add(new CustomViewMapping(
+                viewId, text, actionId, visible, backgroundResource, textColor, maxLines, bold));
           }
         }
       }

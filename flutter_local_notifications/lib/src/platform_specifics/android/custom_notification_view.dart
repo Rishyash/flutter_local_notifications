@@ -17,10 +17,20 @@ class CustomViewMapping {
   /// [viewId] is the Android resource ID name (e.g., 'button_action', 'text_title')
   /// [text] is the text content to set on the view (for TextViews)
   /// [actionId] is the action identifier for clickable views (for Buttons)
+  /// [visible] toggles the view's visibility (false → View.GONE)
+  /// [backgroundResource] is a drawable resource name applied as the background
+  /// [textColor] is a hex color string (e.g. '#FFFFFF') applied to a TextView
+  /// [maxLines] sets the maximum number of lines on a TextView
+  /// [bold] renders a TextView's text in bold
   const CustomViewMapping({
     required this.viewId,
     this.text,
     this.actionId,
+    this.visible,
+    this.backgroundResource,
+    this.textColor,
+    this.maxLines,
+    this.bold,
   });
 
   /// The Android resource ID name of the view.
@@ -41,12 +51,35 @@ class CustomViewMapping {
   /// through the notification callback, allowing you to handle the action.
   final String? actionId;
 
+  /// Whether the view is visible. `false` hides it with `View.GONE`.
+  final bool? visible;
+
+  /// Name of a drawable resource to apply as the view's background.
+  ///
+  /// Example: 'app_bg_green_all_rounded'. Resolved on the native side via
+  /// `getIdentifier(name, "drawable", packageName)`.
+  final String? backgroundResource;
+
+  /// Hex color string applied as a TextView's text color. Example: '#D9052C'.
+  final String? textColor;
+
+  /// Maximum number of lines for a TextView.
+  final int? maxLines;
+
+  /// Whether the TextView text should be rendered bold.
+  final bool? bold;
+
   /// Converts this mapping to a map for platform channel communication.
   Map<String, dynamic> toMap() {
     return <String, dynamic>{
       'viewId': viewId,
       if (text != null) 'text': text,
       if (actionId != null) 'actionId': actionId,
+      if (visible != null) 'visible': visible,
+      if (backgroundResource != null) 'backgroundResource': backgroundResource,
+      if (textColor != null) 'textColor': textColor,
+      if (maxLines != null) 'maxLines': maxLines,
+      if (bold != null) 'bold': bold,
     };
   }
 }
